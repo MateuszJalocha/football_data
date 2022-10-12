@@ -1,0 +1,72 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.2.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: (\.md)|(\.rst)$
+      - id: end-of-file-fixer
+        exclude: (\.md)|(\.rst)$
+      - id: check-json                      # loads json files to verify content
+      - id: check-toml                      # loads toml files to verify content
+      - id: check-yaml
+      - id: check-added-large-files
+        exclude: (video_server/dash-dist)
+      - id: check-merge-conflict            # check for files that contain merge conflict strings
+      - id: debug-statements                # checks if there are no more debug statements, e.g. breakpoint()
+
+
+  - repo: https://github.com/python/black   # python autoformatter
+    rev: 22.6.0
+    hooks:
+      - id: black
+
+  - repo: local
+    hooks:
+      - id: tests                                   # hook id
+        name: tests                                 # name of the hook - shown during execution
+        entry: poetry run pytest tests/unit         # run all unit tests
+        language: system                            # tells pre-commit how to install hook
+        stages: [ push ]                            # will be run on each push (but not on every commit)
+        pass_filenames: false                       # if false no arguments will be passed to the hook
+        always_run: true                            # run hook even if files do not match
+      - id: mypy                # the id use for `pre-commit run <id>`
+        name: mypy              # the name for this as displayed within the console
+        entry: mypy             # the script/command to execute
+        language: system        # use the currently activated environment
+        types:
+          - python              # only check python related files
+        require_serial: true    # do not run in parallel
+        files: ^/pylabbb
+      - id: pylint
+        name: pylint
+        entry: pylint
+        language: system
+        types:
+          - python
+        require_serial: true
+        files: ^/pylabbb
+
+
+  - repo: https://github.com/PyCQA/bandit   #searches for security issues in python code via static code scanning
+    rev: 1.7.4
+    hooks:
+      - id: bandit
+        args: # list of additional parameters to pass to the hook
+          - --quiet                           # only display errors
+          - --recursive                       # recursively run tests for all python files
+        exclude: (^tests/)|(^experimental/)|(^notebooks/)                     # exclude tests folder via file pattern
+        stages: [ commit ]                    # will be run on each commit
+
+  - repo: https://github.com/milin/giticket   # jira ticket info to each commit message (based on branch name regex)
+    rev: v1.3
+    hooks:
+    - id: giticket
+      args: [ '--regex=[\w]+/[\w]+-[\d]+', '--format={ticket}: {commit_msg}', '--mode=regex_match' ]
+      stages: [ commit-msg ]
+
+  - repo: https://github.com/pycqa/isort    # sorts python import statements
+    rev: 5.10.1
+    hooks:
+      - id: isort

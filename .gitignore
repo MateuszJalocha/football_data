@@ -1,0 +1,10 @@
+.venv
+.env
+__pycache__
+*.pyc
+.pytest_cache
+.ipynb_checkpoints
+_cache
+*.ipynb
+.idea
+.python-version
