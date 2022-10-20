@@ -8,3 +8,4 @@ _cache
 *.ipynb
 .idea
 .python-version
+.env

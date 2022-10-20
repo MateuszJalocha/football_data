@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 class Events(BaseModel):
     event_types: list = []
     player_names: list = []
+    player_links: list = []
     minutes: list = []
 
 
