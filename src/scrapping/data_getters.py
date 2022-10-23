@@ -5,11 +5,17 @@ import numpy as np
 import pandas as pd
 from bs4 import BeautifulSoup
 
-from src.core.models import DetailsGetter, Events, MatchInfo, PageConnector
+from src.core.models import (
+    DetailsGetter,
+    MatchData,
+    MatchEvents,
+    MatchStats,
+    PageConnector,
+)
 
 
-class MatchReportLinksGetter:
-    """Get links with match reports, where you can find all the information from the match."""
+class ReportLinksGetter:
+    """Get links with match reports, where you can find all information from the match."""
 
     def __init__(self, date: str, url: str):
         """
@@ -106,17 +112,7 @@ class MatchReportLinksGetter:
 class EventsGetter(DetailsGetter):
     """Get events that appeared during match."""
 
-    def __init__(self, url: str, basic_page_url: str, match_info: MatchInfo):
-        """
-        Parameters
-        ----------
-        url: str
-            url with match results, where match reports are also stored
-        basic_page_url: str
-            url of basic webpage to create links for PageConnector
-        match_info: MatchInfo
-            object that store extracted information
-        """
+    def __init__(self, url: str, basic_page_url: str, match_info: MatchData):
         super().__init__(url=url, basic_page_url=basic_page_url, match_info=match_info)
         self._event_names = ["event a", "event b"]
         self._first_team_events_contest = self._page_connector.soup.find_all(
@@ -157,7 +153,7 @@ class EventsGetter(DetailsGetter):
             events=self.match_info.away_events,
         )
 
-    def _prepare_events(self, event_content: list[BeautifulSoup], events: Events):
+    def _prepare_events(self, event_content: list[BeautifulSoup], events: MatchEvents):
         """Add available events to an object containing extracted information.
 
         Extract:
@@ -171,7 +167,7 @@ class EventsGetter(DetailsGetter):
         ----------
         event_content: list[BeautifulSoup]
             all events information available in the match link
-        events: Events
+        events: MatchEvents
             object to store event information
         """
         events.event_types = self._get_event_types(event_content=event_content)
@@ -193,13 +189,13 @@ class EventsGetter(DetailsGetter):
 
     @staticmethod
     def _get_event_second_player(
-        events: Events, basic_event_type: str, new_event_type: str
+        events: MatchEvents, basic_event_type: str, new_event_type: str
     ):
         """Split events with two players (goal, substitute_in) on separated (assist, substitute_out).
 
         Parameters
         ----------
-        events: Events
+        events: MatchEvents
             object to store event information
         basic_event_type: str
             information whether we are looking for second player in goal event or substitute_in event
@@ -222,7 +218,8 @@ class EventsGetter(DetailsGetter):
                 events.event_types.append(new_event_type)
 
     @staticmethod
-    def _split_two_players(events: Events, variable: str, idx: int):
+    def _split_two_players(events: MatchEvents, variable: str, idx: int):
+        """Split two players in event into separated events (e.g. goal -> goal and assist)."""
         events_variable_values = getattr(events, variable)
         substitute_player_out = events_variable_values[idx][1]
         events_variable_values[idx] = events_variable_values[idx][:1]
@@ -260,7 +257,7 @@ class EventsGetter(DetailsGetter):
 
 
 class SquadsGetter(DetailsGetter):
-    def __init__(self, url: str, basic_page_url: str, match_info: MatchInfo):
+    def __init__(self, url: str, basic_page_url: str, match_info: MatchData):
         super().__init__(url=url, basic_page_url=basic_page_url, match_info=match_info)
         self._lineups = self._page_connector.soup.find_all("div", {"class": "lineup"})
         self._home_squad = None
@@ -269,9 +266,11 @@ class SquadsGetter(DetailsGetter):
 
     @property
     def lineups_missing(self):
+        """Information whether lineups are missing."""
         return self._lineups_missing
 
     def _lineups_exists(self):
+        """Verify whether lineup exists and add information to match_info."""
         if not self._lineups:
             self._lineups_missing += 1
             lineups_missing = 1
@@ -285,6 +284,7 @@ class SquadsGetter(DetailsGetter):
         )
 
     def get_teams_info(self):
+        """Get information about squads."""
         self._lineups_exists()
 
         if not self.match_info.debug_info["lineups_missing"]:
@@ -292,6 +292,13 @@ class SquadsGetter(DetailsGetter):
             self._separate_squad(team_type="away")
 
     def _separate_squad(self, team_type: str):
+        """Separate first team players with bench ones.
+
+        Parameters
+        ----------
+        team_type: str
+            information whether split squads for away or home team
+        """
         columns = ["shirt_number", "player"]
 
         getattr(self.match_info, team_type + "_squad").add_features(
@@ -304,7 +311,7 @@ class SquadsGetter(DetailsGetter):
 
 
 class StatsGetter(DetailsGetter):
-    def __init__(self, url: str, basic_page_url: str, match_info: MatchInfo):
+    def __init__(self, url: str, basic_page_url: str, match_info: MatchData):
         super().__init__(url=url, basic_page_url=basic_page_url, match_info=match_info)
         self._tables = self._page_connector.soup.find_all(
             "div", {"class": "table_container"}
@@ -319,17 +326,21 @@ class StatsGetter(DetailsGetter):
 
     @property
     def stats_missing(self):
+        """Information whether stats are missing."""
         return self._stats_missing
 
     @property
     def table_names_missing(self):
+        """Information whether table names with stats are different than specified in __init__."""
         return self._table_names_missing
 
     @property
     def tab_names_missing(self):
+        """Information whether tab names with stats are different than specified in __init__."""
         return self._table_names_missing
 
     def _stats_exists(self):
+        """Verify whether stats exists and add information to match_info."""
         if not self._tables:
             self._stats_missing += 1
             stats_missing = 1
@@ -343,6 +354,9 @@ class StatsGetter(DetailsGetter):
         )
 
     def _table_names_exists(self):
+        """Verify whether table names with stats are different than specified in __init__
+        and add information to match_info.
+        """
         if not self._table_names:
             self._table_names_missing += 1
             table_names_missing = 1
@@ -358,6 +372,9 @@ class StatsGetter(DetailsGetter):
         )
 
     def _tab_names_exists(self):
+        """Verify whether tab names with stats are different than specified in __init__
+        and add information to match_info.
+        """
         if not self._tab_names:
             self._tab_names_missing += 1
             tab_names_missing = 1
@@ -373,6 +390,7 @@ class StatsGetter(DetailsGetter):
         )
 
     def _clean_table_names(self):
+        """Select table names with 'Stats' or 'Shots' in name. Also exclude names with 'Team Stats' in it."""
         self._table_names = [
             header.text
             for header in self._table_names
@@ -381,9 +399,11 @@ class StatsGetter(DetailsGetter):
         ]
 
     def _clean_tab_names(self):
+        """Get only a text from tab names."""
         self._tab_names = [name.text for name in self._tab_names]
 
     def get_stats(self):
+        """Verify whether components exists, their length is proper and save extracted information."""
         self._stats_exists()
         self._table_names_exists()
         self._tab_names_exists()
@@ -391,6 +411,13 @@ class StatsGetter(DetailsGetter):
         self._verify_components_length(team_type="home")
 
     def _verify_components_length(self, team_type: str):
+        """Separate first team players with bench ones.
+
+        Parameters
+        ----------
+        team_type: str
+            information whether split squads for away or home team
+        """
         if len(self._tables) == len(self._table_names):
             self.convert_tables(team_type=team_type)
             self.match_info.debug_info.append_feature(
@@ -405,12 +432,27 @@ class StatsGetter(DetailsGetter):
                 value=1, name="stats_components_length_miss"
             )
 
-    def convert_tables(self, team_type):
-        team_stats = {"table_name": [], "tab_name": [], "table": []}
-        for idx, table in enumerate(self._tables):
-            team_stats["table"].append(pd.read_html(str(self._tables[idx])))
-            team_stats["table_name"].append(self._table_names[idx])
-            if self._tab_names:
-                team_stats["tab_name"].append(self._tab_names[idx])
+    def convert_tables(self, team_type: str):
+        """Assign table variables to match_info stats property.
 
-        setattr(self.match_info, team_type + "_stats", team_stats)
+        Tab names append only in case they exist.
+
+        Parameters
+        ----------
+        team_type: str
+            information whether set attribute for away or home team
+        """
+        team_stats = {"table_names": [], "tab_names": [], "table": []}
+        for idx, table in enumerate(self._tables):
+            team_stats["table"].append(self._clean_table(self._tables[idx]))
+            team_stats["table_names"].append(self._table_names[idx])
+            if self._tab_names:
+                team_stats["tab_names"].append(self._tab_names[idx])
+        setattr(self.match_info, team_type + "_stats", MatchStats.parse_obj(team_stats))
+
+    @staticmethod
+    def _clean_table(table):
+        """Clean table scrapped from webpage."""
+        # todo remove multiple index in columns and remove last row ('14 players' value)
+        # todo also veirfy whether in all cases (2 tables and more) it look the same
+        return pd.read_html(str(table))[0]
