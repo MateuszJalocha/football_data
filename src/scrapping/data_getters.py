@@ -452,7 +452,11 @@ class StatsGetter(DetailsGetter):
 
     @staticmethod
     def _clean_table(table):
-        """Clean table scrapped from webpage."""
-        # todo remove multiple index in columns and remove last row ('14 players' value)
-        # todo also veirfy whether in all cases (2 tables and more) it look the same
-        return pd.read_html(str(table))[0]
+        """Clean table scrapped from webpage.
+
+        Get rid of multiple index in columns
+        """
+        table_clean = pd.read_html(str(table))[0]
+        table_clean.columns = table_clean.columns.droplevel()
+
+        return table_clean[~table_clean.Player.str.contains("Players")]
